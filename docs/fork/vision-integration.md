@@ -54,14 +54,17 @@ Through **Settings → Providers → Add provider → Local ACP command**, or he
 {
   "source": "local",
   "commandPath": "node",
-  "commandArgs": ["<fork checkout>/packages/vision-acp/dist/vision-acp.js"],
+  "commandArgs": ["<fork checkout>/packages/vision-acp/src/bin.ts"],
   "authMethodId": "owner-oauth",
   "customModels": ["vision"]
 }
 ```
 
 `commandPath` is the real executable (`node`), because local ACP commands launch without a
-shell. The bridge reads `VISION_ACP_MCP_URL` from the instance's environment overrides.
+shell. Node 26 strips TypeScript types natively, so the bridge runs straight from `src/bin.ts`
+without a build step. The bridge reads `VISION_ACP_MCP_URL` from the instance's environment
+overrides and refuses to start when `VISION_ACP_BRIDGE=1` is already set, so a Vision-driven
+session can never spawn a second bridge.
 
 ## Direction B — Vision drives T3 (configuration only)
 
@@ -82,8 +85,9 @@ are not Vision-specific (see the roadmap) must not import from `packages/vision-
 
 ## Roadmap
 
-1. `packages/vision-acp/` skeleton: `initialize`/`session/new`/`session/prompt` against a
-   fake MCP server, tested with the `effect-acp` client side.
+1. `packages/vision-acp/` skeleton (done): `initialize`/`session/new`/`session/prompt`/
+   `session/cancel` on the `effect-acp` agent side, a `VisionClient` service with an
+   "unavailable" layer, tests over in-memory stdio with a fake client.
 2. MCP client with owner OAuth (loopback redirect), token store under T3 home.
 3. Register as a Local ACP command on the Windows host, end-to-end turn from the web UI.
 4. Same on the macOS host.

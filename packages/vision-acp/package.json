@@ -1,0 +1,29 @@
+{
+  "name": "@t3tools/vision-acp",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./agent": {
+      "types": "./src/agent.ts",
+      "import": "./src/agent.ts"
+    },
+    "./vision-client": {
+      "types": "./src/vision-client.ts",
+      "import": "./src/vision-client.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run --config ../../vite.config.ts --dir ."
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "effect": "catalog:",
+    "effect-acp": "workspace:*"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

@@ -27,6 +27,8 @@ by taking upstream's lockfile and regenerating.
 
 `.github/workflows/fork-sync.yml` runs the same script every six hours on the fork and opens
 (or comments on) a `fork-sync` issue when a human is needed. It never runs in the upstream repo.
+Until the fork token can push workflow files, that commit lives on the `fork-ci-sync` branch
+and a scheduled job on a maintainer machine runs `sync-upstream.sh --check --push` instead.
 
 Upstream cadence is several nightly tags per day; stable tags are `vX.Y.Z`. Merging often keeps
 each conflict small.
@@ -62,6 +64,8 @@ from the repository root. Full runbook: [docs/operations/development.md](../oper
 
 ## Integration design
 
+Full design: [vision-integration.md](./vision-integration.md).
+
 Target: one control surface for coding agents on Windows and macOS, driven by an external
 automation agent (our "Vision" system) and also usable as a plain personal/team tool.
 
@@ -71,7 +75,7 @@ Two directions, both covered by upstream features, no fork code required:
    `/mcp` endpoint (OAuth, read-only through full access) or uses `t3 thread start|send|show`
    on the host. Threads run under the provider and permission mode the project allows.
    See [docs/user/outside-agents.md](../user/outside-agents.md).
-2. **T3 Code drives the automation agent.** The agent is added as a *Local ACP command*
+2. **T3 Code drives the automation agent.** The agent is added as a _Local ACP command_
    provider, so it appears next to Codex and Claude Code with projects, threads, checkpoints and
    task delegation managed by T3 Code. See [docs/user/providers-acp.md](../user/providers-acp.md).
 

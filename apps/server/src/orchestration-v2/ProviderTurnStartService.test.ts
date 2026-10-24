@@ -15,6 +15,10 @@ import {
   RunId,
   ThreadId,
   ProjectId,
+  NotebookId, // fork: notes
+  NoteId, // fork: notes
+  type Note, // fork: notes
+  type Notebook, // fork: notes
   type OrchestrationV2ThreadProjection,
   OrchestrationV2DomainEvent,
 } from "@t3tools/contracts";
@@ -46,8 +50,33 @@ import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as ProviderTurnStart from "./ProviderTurnStartService.ts";
 import * as RunExecutionService from "./RunExecutionService.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
+import * as NotesService from "@t3tools/vision-notes/service"; // fork: notes
 
 const isDomainEvent = Schema.is(OrchestrationV2DomainEvent);
+
+// fork: notes - the thread notebook whose pinned notes follow the user text.
+const forkNotebook: Notebook = {
+  notebookId: NotebookId.make("notebook-fork"),
+  projectId: ProjectId.make("project-fork"),
+  title: "Notes",
+  isDefault: true,
+  createdAt: "2026-09-04T12:00:00.000Z",
+  updatedAt: "2026-09-04T12:00:00.000Z",
+};
+const forkNote = (overrides: Partial<Note> & Pick<Note, "noteId">): Note => ({
+  notebookId: forkNotebook.notebookId,
+  title: "Untitled",
+  body: "",
+  author: { _tag: "user" },
+  pinned: true,
+  createdAt: forkNotebook.createdAt,
+  updatedAt: forkNotebook.updatedAt,
+  ...overrides,
+});
+const layerNotesEmpty = Layer.mock(NotesService.NotesService)({
+  notebookForThread: () => Effect.succeed(forkNotebook),
+  listNotes: () => Effect.succeed([]),
+});
 
 const managedWorktreesDir = "/tmp/provider-turn-start-worktrees";
 // fs.realpath applies `..` and `.` before following symlinks.
@@ -128,6 +157,7 @@ function startWithMissingWorktree(
         Layer.mock(ContextHandoffService.ContextHandoffServiceV2)({}),
         Layer.mock(EventSink.EventSinkV2)({ writeIfRunCurrent }),
         IdAllocator.layer,
+        layerNotesEmpty, // fork: notes
         Layer.succeed(FileSystem.FileSystem, {
           exists: () => Effect.succeed(false),
           // Paths that exist on the fake disk, mapped to where their symlinks lead.
@@ -272,6 +302,7 @@ function makeLocalCommandHarness(input: {
   readonly interruptRunBeforeOpenFailure?: boolean;
   readonly writeFailure?: unknown;
   readonly failReadsAfterRunning?: boolean;
+  readonly notes?: Layer.Layer<never>; // fork: notes - optional service, any layer fits
   readonly previousTurn?: {
     readonly runStatus: "failed" | "completed";
     readonly turnStatus: "running" | "completed" | "interrupted";
@@ -740,6 +771,7 @@ function makeLocalCommandHarness(input: {
         Layer.mock(RuntimePolicy.RuntimePolicyV2)({
           resolve: resolveRuntimePolicy,
         }),
+        input.notes ?? layerNotesEmpty, // fork: notes
       ),
     ),
   );
@@ -1243,3 +1275,72 @@ for (const previousMessages of [[], ["/compact", " /COMPACT "]]) {
       }),
   );
 }
+
+// fork: notes
+effectIt.effect("appends the thread notebook's pinned notes to the provider text", () =>
+  Effect.gen(function* () {
+    const harness = makeLocalCommandHarness({
+      text: "Continue",
+      previousTurn: { runStatus: "failed", turnStatus: "running" },
+      notes: Layer.mock(NotesService.NotesService)({
+        notebookForThread: () => Effect.succeed(forkNotebook),
+        listNotes: () =>
+          Effect.succeed([
+            forkNote({
+              noteId: NoteId.make("note-pinned"),
+              title: "Deploy rules",
+              body: "ask before prod",
+            }),
+            forkNote({ noteId: NoteId.make("note-loose"), pinned: false, body: "loose idea" }),
+          ]),
+      }),
+    });
+
+    yield* harness.start;
+
+    expect(harness.startRootRun).toHaveBeenCalledOnce();
+    const text = harness.startRootRun.mock.calls[0]?.[0].message.text ?? "";
+    expect(
+      text.startsWith(
+        'Continue\n\n<t3_notes version="1" notebook="Notes" notebookId="notebook-fork">\n',
+      ),
+    ).toBe(true);
+    expect(text).toContain('<note id="note-pinned" title="Deploy rules"');
+    expect(text).toContain("ask before prod");
+    expect(text).not.toContain("loose idea");
+  }),
+);
+
+// fork: notes
+effectIt.effect("starts the turn with the plain text when the notes store dies", () =>
+  Effect.gen(function* () {
+    const harness = makeLocalCommandHarness({
+      text: "Continue",
+      previousTurn: { runStatus: "failed", turnStatus: "running" },
+      notes: Layer.mock(NotesService.NotesService)({
+        notebookForThread: () => Effect.die("notes database gone"),
+      }),
+    });
+
+    yield* harness.start;
+
+    expect(harness.startRootRun).toHaveBeenCalledOnce();
+    expect(harness.startRootRun.mock.calls[0]?.[0].message.text).toBe("Continue");
+  }),
+);
+
+// fork: notes - without a notes store in context the provider text stays plain.
+effectIt.effect("starts the turn with the plain text when no notes store is configured", () =>
+  Effect.gen(function* () {
+    const harness = makeLocalCommandHarness({
+      text: "Continue",
+      previousTurn: { runStatus: "failed", turnStatus: "running" },
+      notes: Layer.empty,
+    });
+
+    yield* harness.start;
+
+    expect(harness.startRootRun).toHaveBeenCalledOnce();
+    expect(harness.startRootRun.mock.calls[0]?.[0].message.text).toBe("Continue");
+  }),
+);

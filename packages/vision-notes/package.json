@@ -15,6 +15,10 @@
       "types": "./src/migrations.ts",
       "import": "./src/migrations.ts"
     },
+    "./provider-context": {
+      "types": "./src/provider-context.ts",
+      "import": "./src/provider-context.ts"
+    },
     "./repository": {
       "types": "./src/repository.ts",
       "import": "./src/repository.ts"

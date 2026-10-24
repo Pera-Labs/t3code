@@ -1,5 +1,7 @@
 import { modelSelectionsEqual } from "@t3tools/shared/model";
 import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
+import * as VisionNotesContext from "@t3tools/vision-notes/provider-context"; // fork: notes
+import * as NotesService from "@t3tools/vision-notes/service"; // fork: notes
 import {
   CommandId,
   latestProviderTurnForAttempt,
@@ -130,6 +132,9 @@ export const layer: Layer.Layer<
     const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
     const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
     const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
+    // fork: notes - optional, so upstream layer compositions and tests stay untouched.
+    // The server provides the notes store; a turn without one keeps the plain text.
+    const notes = yield* Effect.serviceOption(NotesService.NotesService);
     const isManagedWorktreePath = yield* makeIsManagedWorktreePath;
 
     // These callbacks outlive startup while a run drains background work. Build
@@ -1019,10 +1024,18 @@ export const layer: Layer.Layer<
       const routableSubagents = projection.subagents.filter((subagent) =>
         RunExecutionService.canRouteRelatedSubagent(subagent.status),
       );
-      const userText = projectComposerContextForProvider({
+      const composerUserText = projectComposerContextForProvider({
         text: message.text,
         records: message.context?.records ?? [],
       });
+      // fork: notes - the pinned notes of the thread's notebook follow the user text.
+      const userText = Option.isSome(notes)
+        ? yield* VisionNotesContext.providerTextWithPinnedNotes({
+            text: composerUserText,
+            threadId: projection.thread.id,
+            projectId: projection.thread.projectId,
+          }).pipe(Effect.provideService(NotesService.NotesService, notes.value))
+        : composerUserText;
       // Delivered once: this run's provider turn marks the work as told. A
       // restart continuation is prompted by its own text or resumes natively.
       const noteContinuation = isRestartNoteContinuation(

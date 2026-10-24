@@ -509,6 +509,7 @@ const layerOrchestrationV2Runtime = RuntimeLayer.layerProduction.pipe(
       Layer.provide(RuntimeLayer.layerProjectService),
     ),
   ),
+  Layer.provide(VisionNotes.layer), // fork: notes
 );
 
 const layerOrchestrationApplication = CheckpointDiffQuery.layer.pipe(

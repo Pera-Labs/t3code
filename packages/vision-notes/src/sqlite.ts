@@ -11,25 +11,23 @@ import { runMigrations } from "./migrations.ts";
 
 export const DATABASE_FILE = "fork-notes.sqlite";
 export const DATABASE_PATH_ENV = "VISION_NOTES_DB_PATH";
-export const T3_HOME_ENV = "T3CODE_HOME";
 
-/** Notes keep their own file inside the T3 home so upstream schema changes never touch them. */
-export const resolveDatabasePath: Effect.Effect<string, never, Path.Path> = Effect.gen(
-  function* () {
-    const env = yield* HostProcess.Environment;
-    const path = yield* Path.Path;
-    const override = env[DATABASE_PATH_ENV];
-    if (override !== undefined && override !== "") {
-      return override;
-    }
-    const explicitHome = env[T3_HOME_ENV];
-    const t3Home =
-      explicitHome !== undefined && explicitHome !== ""
-        ? explicitHome
-        : path.join(yield* HostProcess.HomeDirectory, ".t3");
-    return path.join(t3Home, DATABASE_FILE);
-  },
-);
+/**
+ * Notes keep their own file next to the server's main database, so upstream schema changes
+ * never touch them and a dev server never shares notes with the packaged one. The env override
+ * wins, for tests and operators.
+ */
+export const resolveDatabasePath = Effect.fn("VisionNotes.resolveDatabasePath")(function* (
+  stateDir: string,
+) {
+  const env = yield* HostProcess.Environment;
+  const path = yield* Path.Path;
+  const override = env[DATABASE_PATH_ENV];
+  if (override !== undefined && override !== "") {
+    return override;
+  }
+  return path.join(stateDir, DATABASE_FILE);
+});
 
 const layerSetup = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -66,9 +64,10 @@ export const layerMemory = Layer.provideMerge(
   NodeSqliteClient.layer({ filename: ":memory:" }),
 );
 
-export const layerDefault = Layer.unwrap(
-  Effect.gen(function* () {
-    const dbPath = yield* resolveDatabasePath;
-    return layerFromPath(dbPath);
-  }),
-);
+/** On-disk database inside the given state directory (see resolveDatabasePath). */
+export const layerForStateDir = Effect.fn("VisionNotes.layerForStateDir")(function* (
+  stateDir: string,
+) {
+  const dbPath = yield* resolveDatabasePath(stateDir);
+  return layerFromPath(dbPath);
+}, Layer.unwrap);

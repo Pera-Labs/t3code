@@ -112,6 +112,11 @@ fork touch. Deferred until v1 is in use.
   notebook resolves to the project default notebook, so its pinned notes reach every thread
   of the project. Storage failures and defects only log; the turn always starts. Pinned notes
   are re-sent on every turn (v1 trade-off; "only when the pinned set changed" is a follow-up).
+- 5d-1 follow-up. Done: the notes file lives in the server state directory next to
+  `statev2.sqlite` (`<state>/fork-notes.sqlite`, `VISION_NOTES_DB_PATH` still overrides), so a dev
+  server and the packaged one never share notes. Verified end to end on a running dev server:
+  an agent turn wrote a pinned note with `t3_note_write` and a new thread of the same project
+  received it in `<t3_notes>`.
 - 5d-2. Optional: Vision mirror and a `note` composer context kind.
 
 ### Out of scope

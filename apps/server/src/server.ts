@@ -294,6 +294,14 @@ const layerRelayClient = Layer.unwrap(
   }),
 );
 
+// fork: notes - one notes store per server, next to statev2.sqlite in the state directory.
+const layerVisionNotes = Layer.unwrap(
+  Effect.gen(function* () {
+    const config = yield* ServerConfig.ServerConfig;
+    return VisionNotes.layerForStateDir(config.stateDir);
+  }),
+);
+
 const layerHttpServer = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
@@ -509,7 +517,7 @@ const layerOrchestrationV2Runtime = RuntimeLayer.layerProduction.pipe(
       Layer.provide(RuntimeLayer.layerProjectService),
     ),
   ),
-  Layer.provide(VisionNotes.layer), // fork: notes
+  Layer.provide(layerVisionNotes), // fork: notes
 );
 
 const layerOrchestrationApplication = CheckpointDiffQuery.layer.pipe(
@@ -731,7 +739,7 @@ const layerMakeRoutes = Layer.mergeAll(
   Layer.provide(layerCommandReadiness),
   Layer.provide(ServerHttp.layerBrowserApiCors),
   Layer.provide(ServerHttp.layerHttpCompression),
-  Layer.provide(VisionNotes.layer), // fork: notes
+  Layer.provide(layerVisionNotes), // fork: notes
 );
 
 const layerMakeServer = Layer.unwrap(

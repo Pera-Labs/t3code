@@ -53,30 +53,21 @@ it.layer(NodeServices.layer)("VisionNotes sqlite", (it) => {
     }).pipe(Effect.scoped),
   );
 
-  it.effect(
-    "resolves the database path from the override, then T3CODE_HOME, then the home directory",
-    () =>
-      Effect.gen(function* () {
-        const path = yield* Path.Path;
+  it.effect("resolves the database path from the override, then the state directory", () =>
+    Effect.gen(function* () {
+      const path = yield* Path.Path;
 
-        const overridden = yield* Sqlite.resolveDatabasePath.pipe(
-          Effect.provideService(HostProcess.Environment, {
-            [Sqlite.DATABASE_PATH_ENV]: "/data/override.sqlite",
-            [Sqlite.T3_HOME_ENV]: "/srv/t3",
-          }),
-        );
-        assert.strictEqual(overridden, "/data/override.sqlite");
+      const overridden = yield* Sqlite.resolveDatabasePath("/srv/t3/userdata").pipe(
+        Effect.provideService(HostProcess.Environment, {
+          [Sqlite.DATABASE_PATH_ENV]: "/data/override.sqlite",
+        }),
+      );
+      assert.strictEqual(overridden, "/data/override.sqlite");
 
-        const fromHome = yield* Sqlite.resolveDatabasePath.pipe(
-          Effect.provideService(HostProcess.Environment, { [Sqlite.T3_HOME_ENV]: "/srv/t3" }),
-        );
-        assert.strictEqual(fromHome, path.join("/srv/t3", Sqlite.DATABASE_FILE));
-
-        const fallback = yield* Sqlite.resolveDatabasePath.pipe(
-          Effect.provideService(HostProcess.Environment, { [Sqlite.DATABASE_PATH_ENV]: "" }),
-          Effect.provideService(HostProcess.HomeDirectory, "/home/tester"),
-        );
-        assert.strictEqual(fallback, path.join("/home/tester", ".t3", Sqlite.DATABASE_FILE));
-      }),
+      const fromStateDir = yield* Sqlite.resolveDatabasePath("/srv/t3/userdata").pipe(
+        Effect.provideService(HostProcess.Environment, { [Sqlite.DATABASE_PATH_ENV]: "" }),
+      );
+      assert.strictEqual(fromStateDir, path.join("/srv/t3/userdata", Sqlite.DATABASE_FILE));
+    }),
   );
 });

@@ -7,11 +7,14 @@
 #
 # Usage: scripts/fork/sync-upstream.sh [--check] [--push]
 #   --check  run `vp i` and `vp run check:changed` after the merge; abort on failure
-#   --push   push main and the integration branch to origin when everything passed
+#   --push   push the mirror right after its fast-forward, and the integration branch when
+#            everything passed. A rejected mirror push stops the run before the merge, so a
+#            token that cannot push (for example one without the `workflow` scope while
+#            upstream touched `.github/workflows/`) never leaves unpushable merges behind.
 #
 # Exit codes: 0 ok / already current, 2 merge conflict (merge aborted, tree clean),
-#             3 checks failed (merge kept locally, nothing pushed), 64 bad usage,
-#             65 dirty working tree.
+#             3 checks failed (merge kept locally, nothing pushed), 4 mirror push rejected
+#             (integration branch untouched), 64 bad usage, 65 dirty working tree.
 #
 # Environment overrides: UPSTREAM_REMOTE, UPSTREAM_URL, MIRROR_BRANCH, INTEGRATION_BRANCH.
 set -euo pipefail
@@ -27,7 +30,7 @@ for arg in "$@"; do
   case "$arg" in
     --check) CHECK=1 ;;
     --push) PUSH=1 ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "unknown argument: $arg" >&2; exit 64 ;;
   esac
 done
@@ -55,11 +58,18 @@ git checkout --quiet "$MIRROR_BRANCH"
 git merge --ff-only --quiet "$UPSTREAM_REMOTE/$MIRROR_BRANCH"
 upstream_sha=$(git rev-parse --short "$MIRROR_BRANCH")
 
+# Publish the mirror before touching the integration branch: if origin rejects it, the
+# integration branch would be rejected for the same reason, so stop while it is still clean.
+if [ "$PUSH" = 1 ] && ! git push --quiet origin "$MIRROR_BRANCH"; then
+  echo "origin rejected the $MIRROR_BRANCH push (upstream $upstream_sha); $INTEGRATION_BRANCH left untouched" >&2
+  git checkout --quiet "$start_branch"
+  exit 4
+fi
+
 # 2. Integration branch: merge the mirror in.
 git checkout --quiet "$INTEGRATION_BRANCH"
 if git merge-base --is-ancestor "$MIRROR_BRANCH" "$INTEGRATION_BRANCH"; then
   echo "$INTEGRATION_BRANCH already contains upstream $upstream_sha"
-  [ "$PUSH" = 1 ] && git push --quiet origin "$MIRROR_BRANCH"
   git checkout --quiet "$start_branch"
   exit 0
 fi
@@ -91,7 +101,7 @@ if [ "$CHECK" = 1 ]; then
 fi
 
 if [ "$PUSH" = 1 ]; then
-  git push --quiet origin "$MIRROR_BRANCH" "$INTEGRATION_BRANCH"
+  git push --quiet origin "$INTEGRATION_BRANCH"
   echo "pushed $MIRROR_BRANCH and $INTEGRATION_BRANCH (upstream $upstream_sha)"
 else
   echo "merged upstream $upstream_sha into $INTEGRATION_BRANCH locally; rerun with --push to publish"

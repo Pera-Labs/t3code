@@ -1,6 +1,6 @@
 # Vision integration design
 
-Status: roadmap steps 1 to 4 implemented (see Roadmap); the design below is unchanged.
+Status: roadmap steps 1 to 4 implemented, step 5 decided (see Roadmap and `ideas.md`); the design below is unchanged.
 Related: [fork guide](./README.md).
 
 "Vision" is the fork maintainers' private assistant: a long-running agent with its own
@@ -137,6 +137,7 @@ are not Vision-specific (see the roadmap) must not import from `packages/vision-
    directory, `commandPath` set to the Node 26 binary inside the version manager's install
    directory, same `project add` and `thread start` check; the reply came back on the first
    attempt.
-5. Ideas re-implemented (not copied) from other agent UIs: in-window editor pane, local
-   dictation, usage/cost forecast, cross-thread notes. Each as its own package or behind a
-   setting, generic mode first.
+5. Ideas re-implemented (not copied) from other agent UIs (in progress): the overlap survey
+   and the first design are in [`ideas.md`](./ideas.md). Editor pane and usage already exist
+   upstream, dictation is an iOS-only feature today, cross-thread notes are missing, so the
+   first feature is notebooks: own package, own database file, generic mode first.

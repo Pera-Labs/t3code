@@ -18,12 +18,19 @@ Remotes: `origin` = this fork, `upstream` = `https://github.com/pingdotgg/t3code
 ```sh
 scripts/fork/sync-upstream.sh            # fetch, ff main, merge main into vision (local only)
 scripts/fork/sync-upstream.sh --check    # also run `vp i` + `vp run check:changed`
-scripts/fork/sync-upstream.sh --push     # push main + vision when the merge succeeded
+scripts/fork/sync-upstream.sh --push     # push main right after its ff, vision after the merge
 ```
 
-Exit `2` means a conflict: the merge was aborted and the tree is clean. Resolve by hand on
-`vision`, commit, rerun. A conflict that only touches `pnpm-lock.yaml` is resolved automatically
-by taking upstream's lockfile and regenerating.
+Exit codes: `0` ok or already current, `2` merge conflict (aborted, tree clean: resolve by hand
+on `vision`, commit, rerun; a conflict that only touches `pnpm-lock.yaml` is resolved
+automatically by taking upstream's lockfile and regenerating), `3` checks failed (merge kept
+locally, nothing pushed), `4` origin rejected the `main` push (`vision` untouched), `65` dirty
+tree.
+
+With `--push` the mirror is pushed before the merge on purpose: when origin refuses `main`, it
+would refuse `vision` for the same reason, and the integration branch would be left with a merge
+commit that cannot be published. The usual cause of a `4` is a token without the `workflow`
+scope while upstream changed something under `.github/workflows/`; fix the token, rerun.
 
 `.github/workflows/fork-sync.yml` runs the same script every six hours on the fork and opens
 (or comments on) a `fork-sync` issue when a human is needed. It never runs in the upstream repo.

@@ -16,6 +16,7 @@ import * as AcpAgent from "effect-acp/agent";
 import * as AcpSchema from "effect-acp/schema";
 
 import * as VisionAcp from "./agent.ts";
+import * as OwnerAuth from "./oauth.ts";
 import * as VisionClient from "./vision-client.ts";
 
 const encoder = new TextEncoder();
@@ -50,6 +51,12 @@ const InitializeMessage = Schema.Struct({
   id: Schema.Number,
   method: Schema.Literal("initialize"),
   params: AcpSchema.InitializeRequest,
+});
+const AuthenticateMessage = Schema.Struct({
+  jsonrpc: JsonRpcVersion,
+  id: Schema.Number,
+  method: Schema.Literal("auth/login"),
+  params: AcpSchema.AuthenticateRequest,
 });
 const NewSessionMessage = Schema.Struct({
   jsonrpc: JsonRpcVersion,
@@ -100,7 +107,12 @@ const ResponseMessage = Schema.Struct({
   id: Schema.Number,
   result: Schema.Unknown,
 });
-const OutboundMessage = Schema.Union([SessionUpdateMessage, ResponseMessage]);
+const ErrorResponseMessage = Schema.Struct({
+  jsonrpc: JsonRpcVersion,
+  id: Schema.Number,
+  error: Schema.Struct({ code: Schema.Number, message: Schema.String }),
+});
+const OutboundMessage = Schema.Union([SessionUpdateMessage, ResponseMessage, ErrorResponseMessage]);
 type OutboundMessage = typeof OutboundMessage.Type;
 
 const decodeOutbound = Schema.decodeEffect(Schema.fromJsonString(OutboundMessage));
@@ -141,13 +153,25 @@ const makeFakeVision = Effect.fn("makeFakeVision")(function* (options: FakeVisio
   return { layer: Layer.succeed(VisionClient.VisionClient, service), calls, statusCalls };
 });
 
+const makeFakeAuth = Effect.fn("makeFakeAuth")(function* () {
+  const logins = yield* Ref.make(0);
+  const service: OwnerAuth.OwnerAuthShape = {
+    authenticate: Ref.update(logins, (n) => n + 1),
+    currentAccessToken: Effect.succeedNone,
+    refreshAccessToken: Effect.succeedNone,
+    logout: Effect.void,
+  };
+  return { layer: Layer.succeed(OwnerAuth.OwnerAuth, service), logins };
+});
+
 const makeHarness = Effect.fn("makeHarness")(function* (
   visionLayer: Layer.Layer<VisionClient.VisionClient>,
+  authLayer: Layer.Layer<OwnerAuth.OwnerAuth> = OwnerAuth.layerUnavailable,
 ) {
   const { stdio, input, output } = yield* makeInMemoryStdio();
   const scope = yield* Scope.make();
   const context = yield* Layer.buildWithScope(
-    Layer.merge(AcpAgent.layer(stdio), visionLayer),
+    Layer.mergeAll(AcpAgent.layer(stdio), visionLayer, authLayer),
     scope,
   );
   yield* VisionAcp.register().pipe(
@@ -171,6 +195,18 @@ const makeHarness = Effect.fn("makeHarness")(function* (
     );
     return yield* decodeInitializeResponse(yield* Queue.take(output));
   });
+
+  const authenticate = (id: number, methodId: string) =>
+    Effect.gen(function* () {
+      yield* send(
+        yield* encodeLine(AuthenticateMessage, {
+          jsonrpc: "2.0",
+          id,
+          method: "auth/login",
+          params: { methodId },
+        }),
+      );
+    });
 
   const newSession = Effect.gen(function* () {
     yield* send(
@@ -216,14 +252,17 @@ const makeHarness = Effect.fn("makeHarness")(function* (
 
   const close = Scope.close(scope, Exit.void);
 
-  return { initialize, newSession, prompt, cancel, takeOutbound, close };
+  return { initialize, authenticate, newSession, prompt, cancel, takeOutbound, close };
 });
 
 const sessionUpdates = (messages: ReadonlyArray<OutboundMessage>) =>
   messages.flatMap((message) => ("method" in message ? [message.params.update] : []));
 
 const responses = (messages: ReadonlyArray<OutboundMessage>) =>
-  messages.flatMap((message) => ("id" in message ? [message] : []));
+  messages.flatMap((message) => ("result" in message ? [message] : []));
+
+const errorResponses = (messages: ReadonlyArray<OutboundMessage>) =>
+  messages.flatMap((message) => ("error" in message ? [message] : []));
 
 const chunkText = (update: OutboundUpdate | undefined): string => {
   if (update?.sessionUpdate !== "agent_message_chunk") {
@@ -245,12 +284,40 @@ it.effect("initialize advertises the bridge identity and session/new mints uniqu
         name: VisionAcp.AGENT_NAME,
         version: VisionAcp.AGENT_VERSION,
       });
+      assert.deepStrictEqual(
+        initialized.result.authMethods?.map((method) => method.methodId),
+        [OwnerAuth.AUTH_METHOD_ID],
+      );
 
       const first = yield* harness.newSession;
       const second = yield* harness.newSession;
       assert.match(first, /^vision-[0-9a-f]{6}-1$/);
       assert.match(second, /^vision-[0-9a-f]{6}-2$/);
       assert.notStrictEqual(first, second);
+    }).pipe(Effect.ensuring(harness.close));
+  }),
+);
+
+it.effect("authenticate runs the owner login for the advertised method and rejects others", () =>
+  Effect.gen(function* () {
+    const vision = yield* makeFakeVision({ status: () => ({ state: "done" }) });
+    const auth = yield* makeFakeAuth();
+    const harness = yield* makeHarness(vision.layer, auth.layer);
+
+    yield* Effect.gen(function* () {
+      yield* harness.initialize;
+
+      yield* harness.authenticate(5, OwnerAuth.AUTH_METHOD_ID);
+      const accepted = responses(yield* harness.takeOutbound(1));
+      assert.strictEqual(accepted[0]?.id, 5);
+      assert.deepStrictEqual(accepted[0]?.result, {});
+      assert.strictEqual(yield* Ref.get(auth.logins), 1);
+
+      yield* harness.authenticate(6, "password");
+      const rejected = errorResponses(yield* harness.takeOutbound(1));
+      assert.strictEqual(rejected[0]?.id, 6);
+      assert.include(rejected[0]?.error.message ?? "", "password");
+      assert.strictEqual(yield* Ref.get(auth.logins), 1);
     }).pipe(Effect.ensuring(harness.close));
   }),
 );

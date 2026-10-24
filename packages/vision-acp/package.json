@@ -7,9 +7,33 @@
       "types": "./src/agent.ts",
       "import": "./src/agent.ts"
     },
+    "./browser-opener": {
+      "types": "./src/browser-opener.ts",
+      "import": "./src/browser-opener.ts"
+    },
+    "./config": {
+      "types": "./src/config.ts",
+      "import": "./src/config.ts"
+    },
+    "./mcp-transport": {
+      "types": "./src/mcp-transport.ts",
+      "import": "./src/mcp-transport.ts"
+    },
+    "./oauth": {
+      "types": "./src/oauth.ts",
+      "import": "./src/oauth.ts"
+    },
+    "./token-store": {
+      "types": "./src/token-store.ts",
+      "import": "./src/token-store.ts"
+    },
     "./vision-client": {
       "types": "./src/vision-client.ts",
       "import": "./src/vision-client.ts"
+    },
+    "./vision-client-live": {
+      "types": "./src/vision-client-live.ts",
+      "import": "./src/vision-client-live.ts"
     }
   },
   "scripts": {
@@ -18,6 +42,7 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
+    "@t3tools/shared": "workspace:*",
     "effect": "catalog:",
     "effect-acp": "workspace:*"
   },

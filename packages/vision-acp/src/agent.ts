@@ -8,10 +8,21 @@ import * as AcpAgent from "effect-acp/agent";
 import * as AcpError from "effect-acp/errors";
 import type * as AcpSchema from "effect-acp/schema";
 
+import * as OwnerAuth from "./oauth.ts";
 import * as VisionClient from "./vision-client.ts";
 
 export const AGENT_NAME = "vision-acp";
 export const AGENT_VERSION = "0.1.0";
+
+export const AUTH_METHODS: ReadonlyArray<AcpSchema.AuthMethod> = [
+  {
+    type: "agent",
+    methodId: OwnerAuth.AUTH_METHOD_ID,
+    name: "Vision owner login",
+    description:
+      "Opens the Vision login page in your browser. The owner approves there; the bridge never enters the connection key.",
+  },
+];
 
 type ContentBlock = AcpSchema.PromptRequest["prompt"][number];
 type SessionUpdate = AcpSchema.SessionNotification["update"];
@@ -47,6 +58,7 @@ const describeOutcome = (status: VisionClient.VisionRequestStatus, requestId: st
 export const register = Effect.fn("VisionAcp.register")(function* () {
   const agent = yield* AcpAgent.AcpAgent;
   const vision = yield* VisionClient.VisionClient;
+  const auth = yield* OwnerAuth.OwnerAuth;
   const scope = yield* Effect.scope;
   // Session ids double as idempotency keys toward Vision, so a restarted bridge
   // must not reuse ids from a previous process.
@@ -159,13 +171,29 @@ export const register = Effect.fn("VisionAcp.register")(function* () {
     }
   });
 
+  const authenticate = Effect.fn("VisionAcp.authenticate")(function* (
+    request: AcpSchema.AuthenticateRequest,
+  ) {
+    if (request.methodId !== OwnerAuth.AUTH_METHOD_ID) {
+      return yield* AcpError.AcpRequestError.invalidParams(
+        `unknown auth method ${request.methodId}`,
+      );
+    }
+    yield* auth.authenticate.pipe(
+      Effect.mapError((error) => AcpError.AcpRequestError.internalError(error.message)),
+    );
+    return {};
+  });
+
   yield* agent.handleInitialize(() =>
     Effect.succeed({
       protocolVersion: 2,
       capabilities: {},
       info: { name: AGENT_NAME, version: AGENT_VERSION },
+      authMethods: AUTH_METHODS,
     }),
   );
+  yield* agent.handleAuthenticate((request) => authenticate(request));
   yield* agent.handleCreateSession((request) => createSession(request));
   yield* agent.handlePrompt((request) => prompt(request));
   yield* agent.handleCancel((notification) => cancel(notification));

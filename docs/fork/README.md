@@ -95,3 +95,8 @@ Fork work therefore concentrates on: an ACP adapter on the agent side, presets a
 wire environments across the two hosts (LAN / Tailscale), and documentation. Features seen in
 other tools (in-window editor pane, local dictation, usage forecast, cross-thread notes) are
 re-implemented from scratch when adopted; code from unlicensed projects is never copied.
+
+## Upstream PR branches
+
+Fixes meant for `pingdotgg/t3code` are prepared as marker-free branches; see
+`docs/fork/upstream-prs.md` for the list, the verification and the PR bodies.

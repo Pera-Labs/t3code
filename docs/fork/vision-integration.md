@@ -1,6 +1,6 @@
 # Vision integration design
 
-Status: roadmap steps 1 to 3 implemented (see Roadmap); the design below is unchanged.
+Status: roadmap steps 1 to 4 implemented (see Roadmap); the design below is unchanged.
 Related: [fork guide](./README.md).
 
 "Vision" is the fork maintainers' private assistant: a long-running agent with its own
@@ -72,7 +72,9 @@ Through **Settings → Providers → Add provider → Local ACP command**, or he
 
 `commandPath` is the real executable (`node`, or the absolute path of `node.exe` on Windows
 when the server's `PATH` may not carry Node 26), because local ACP commands launch without a
-shell and `.cmd`/`.bat` wrappers are rejected. Node 26 strips TypeScript types natively, so the
+shell and `.cmd`/`.bat` wrappers are rejected. The server does not load shell profiles either, so a
+`node` that only a version manager (mise, nvm, fnm) puts on the shell `PATH` is invisible to it;
+point `commandPath` at the installed binary itself. Node 26 strips TypeScript types natively, so the
 bridge runs straight from `src/bin.ts` without a build step. The file lives at
 `<T3 home>/userdata/settings.json` for a packaged or service-managed server and at
 `<T3 home>/dev/settings.json` for a `dev-runner` server (`vp run dev`, `vp run dev:server`);
@@ -131,7 +133,10 @@ are not Vision-specific (see the roadmap) must not import from `packages/vision-
    --wait` against a `dev-runner` server; the ACP registry driver spawns the bridge, completes
    the handshake and returns its reply. Still open: the same turn from the web UI once a
    browser is paired.
-4. Same on the macOS host.
+4. Same on the macOS host (done, headless): the same `settings.json` under the dev state
+   directory, `commandPath` set to the Node 26 binary inside the version manager's install
+   directory, same `project add` and `thread start` check; the reply came back on the first
+   attempt.
 5. Ideas re-implemented (not copied) from other agent UIs: in-window editor pane, local
    dictation, usage/cost forecast, cross-thread notes. Each as its own package or behind a
    setting, generic mode first.

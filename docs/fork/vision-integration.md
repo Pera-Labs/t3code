@@ -1,6 +1,6 @@
 # Vision integration design
 
-Status: roadmap steps 1 to 4 implemented, step 5 in progress (phase 5a done, see Roadmap and `ideas.md`); the design below is unchanged.
+Status: roadmap steps 1 to 4 implemented, step 5 in progress (phases 5a and 5b done, see Roadmap and `ideas.md`); the design below is unchanged.
 Related: [fork guide](./README.md).
 
 "Vision" is the fork maintainers' private assistant: a long-running agent with its own
@@ -141,3 +141,4 @@ are not Vision-specific (see the roadmap) must not import from `packages/vision-
    and the first design are in [`ideas.md`](./ideas.md). Editor pane and usage already exist
    upstream, dictation is an iOS-only feature today, cross-thread notes are missing, so the
    first feature is notebooks: own package, own database file, generic mode first.
+   Storage (5a) and the RPCs plus web panel (5b) are in; the MCP toolkit (5c) is next.

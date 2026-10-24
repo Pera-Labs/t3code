@@ -1,6 +1,6 @@
 # Vision integration design
 
-Status: roadmap steps 1 to 4 implemented, step 5 decided (see Roadmap and `ideas.md`); the design below is unchanged.
+Status: roadmap steps 1 to 4 implemented, step 5 in progress (phase 5a done, see Roadmap and `ideas.md`); the design below is unchanged.
 Related: [fork guide](./README.md).
 
 "Vision" is the fork maintainers' private assistant: a long-running agent with its own

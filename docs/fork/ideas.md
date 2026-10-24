@@ -85,8 +85,9 @@ fork touch. Deferred until v1 is in use.
 
 ### Phases
 
-- 5a. Contracts, repository and service with their own database, tests on in-memory SQLite.
-  No UI.
+- 5a. Done (`06e8e30927`): `packages/contracts/src/fork/notes.ts` and `packages/vision-notes/`
+  (own `fork-notes.sqlite`, Migrator, repositories, `NotesService`), 18 tests on in-memory
+  SQLite plus a reopen-the-file persistence test. No UI.
 - 5b. RPCs and the web right-panel surface: list, read, edit, pin, default notebook per project,
   thread link picker.
 - 5c. MCP toolkit and handlers with tests. Headless check: an agent in a thread writes a note

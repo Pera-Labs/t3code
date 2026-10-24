@@ -60,7 +60,10 @@ Every line changed in an upstream file is a future conflict. Keep fork code out 
 install `vp` globally into a Node 26 that is first on `PATH`, then run `vp i` and `vp run dev`
 from the repository root. `vp run check:changed` (and so `sync-upstream.sh --check`) runs the
 workspace `vp` entry through `node` on Windows, because Node cannot spawn the `vp.cmd` shim
-without a shell (fork change in `scripts/check-changed.ts`). Full runbook: [docs/operations/development.md](../operations/development.md).
+without a shell (fork change in `scripts/check-changed.ts`). The server test suite also passes on
+Windows: the `ProviderTurnStartService` test harness takes the platform `Path` for the tests that
+touch the real filesystem, because the generic `Path.layer` is POSIX-only (fork change in the test
+file). Full runbook: [docs/operations/development.md](../operations/development.md).
 
 ## Known fork limitations
 

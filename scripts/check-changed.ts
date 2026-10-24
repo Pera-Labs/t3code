@@ -22,6 +22,18 @@ import { decide, readWorkspace } from "../.github/scripts/ci-changes.cjs";
 const root = NodePath.resolve(import.meta.dirname, "..");
 const CODE = /\.[cm]?[jt]sx?$/;
 
+// Windows exposes vp only as a .cmd shim, which Node cannot spawn without a shell,
+// so run the workspace copy of the vp entry script through node there.
+// oxlint-disable-next-line t3code/no-global-process-runtime -- Standalone check script has no Effect runtime.
+const hostPlatform = process.platform;
+const vpCommand = (args: ReadonlyArray<string>): { command: string; args: Array<string> } =>
+  hostPlatform === "win32"
+    ? {
+        command: process.execPath,
+        args: [NodePath.join(root, "node_modules", "vite-plus", "bin", "vp"), ...args],
+      }
+    : { command: "vp", args: [...args] };
+
 // quotePath=false keeps non-ASCII paths as real paths instead of quoted escapes.
 const git = (...args: Array<string>) =>
   NodeChildProcess.execFileSync("git", ["-c", "core.quotePath=false", ...args], {
@@ -205,9 +217,10 @@ const checkPatches = (): boolean => {
     for (const extra of ["apps/mobile/deps", "patches", ".pnpmfile.cjs"]) {
       if (NodeFS.existsSync(NodePath.join(root, extra))) copy(extra);
     }
+    const install = vpCommand(["install", "--lockfile-only", "--ignore-scripts"]);
     const { status, stdout, stderr, error } = NodeChildProcess.spawnSync(
-      "vp",
-      ["install", "--lockfile-only", "--ignore-scripts"],
+      install.command,
+      install.args,
       { cwd: temp, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
     );
     if (status === 0) return true;
@@ -285,7 +298,11 @@ const results = await Promise.all(
         // takes about a second, so the commands start right after it.
         if ("run" in step) return finish(step.run());
         const output: Array<Buffer> = [];
-        const child = NodeChildProcess.spawn("vp", step.args, { cwd: root, env });
+        const invocation = vpCommand(step.args);
+        const child = NodeChildProcess.spawn(invocation.command, invocation.args, {
+          cwd: root,
+          env,
+        });
         child.stdout.on("data", (chunk: Buffer) => output.push(chunk));
         child.stderr.on("data", (chunk: Buffer) => output.push(chunk));
         // A failed spawn emits "error", then "close" with a nonzero code.

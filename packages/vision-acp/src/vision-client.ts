@@ -3,6 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
+import * as Config from "./config.ts";
+
 export class VisionClientError extends Schema.TaggedError<VisionClientError>()(
   "VisionClientError",
   {
@@ -57,8 +59,7 @@ export class VisionClient extends Context.Service<
   }
 >()("@t3tools/vision-acp/vision-client/VisionClient") {}
 
-const UNAVAILABLE_DETAIL =
-  "the Vision MCP client is not wired yet; the bridge accepts sessions but cannot deliver messages";
+const UNAVAILABLE_DETAIL = `${Config.MCP_URL_ENV} is not set for this provider instance, so the bridge accepts sessions but cannot deliver messages`;
 
 const unavailable: Effect.Effect<never, VisionClientError> = Effect.fail(
   new VisionClientError({ reason: "unavailable", detail: UNAVAILABLE_DETAIL }),

@@ -1,6 +1,6 @@
 # Vision integration design
 
-Status: design accepted for implementation (fork maintainers), no code yet.
+Status: roadmap steps 1 to 3 implemented (see Roadmap); the design below is unchanged.
 Related: [fork guide](./README.md).
 
 "Vision" is the fork maintainers' private assistant: a long-running agent with its own
@@ -52,17 +52,48 @@ Through **Settings → Providers → Add provider → Local ACP command**, or he
 
 ```json
 {
-  "source": "local",
-  "commandPath": "node",
-  "commandArgs": ["<fork checkout>/packages/vision-acp/src/bin.ts"],
-  "authMethodId": "owner-oauth",
-  "customModels": ["vision"]
+  "providerInstances": {
+    "vision": {
+      "driver": "acpRegistry",
+      "displayName": "Vision",
+      "enabled": true,
+      "config": {
+        "source": "local",
+        "commandPath": "node",
+        "commandArgs": ["<fork checkout>/packages/vision-acp/src/bin.ts"],
+        "authMethodId": "owner-oauth",
+        "customModels": ["vision"]
+      },
+      "environment": [{ "name": "VISION_ACP_MCP_URL", "value": "https://<vision host>/mcp" }]
+    }
+  }
 }
 ```
 
-`commandPath` is the real executable (`node`), because local ACP commands launch without a
-shell. Node 26 strips TypeScript types natively, so the bridge runs straight from `src/bin.ts`
-without a build step. The bridge reads `VISION_ACP_MCP_URL` from the instance's environment
+`commandPath` is the real executable (`node`, or the absolute path of `node.exe` on Windows
+when the server's `PATH` may not carry Node 26), because local ACP commands launch without a
+shell and `.cmd`/`.bat` wrappers are rejected. Node 26 strips TypeScript types natively, so the
+bridge runs straight from `src/bin.ts` without a build step. The file lives at
+`<T3 home>/userdata/settings.json` for a packaged or service-managed server and at
+`<T3 home>/dev/settings.json` for a `dev-runner` server (`vp run dev`, `vp run dev:server`);
+the server watches it, so the instance appears without a restart. Leave `environment` out
+until a Vision host exists: the bridge then runs in its unavailable mode and every turn returns
+a short notice instead of a Vision reply.
+
+Headless check against a `dev-runner` server (the CLI must see the same dev URL as the
+server, otherwise it looks for state under `userdata`):
+
+```sh
+export VITE_DEV_SERVER_URL=http://localhost:5733
+node apps/server/src/bin.ts project add <workspace>
+node apps/server/src/bin.ts thread start <workspace> "hello" --provider vision --model vision --wait --json
+```
+
+The JSON result carries `"status": "completed"` and the bridge's reply. Without
+`VISION_ACP_MCP_URL` that reply is the unavailable notice; with it, the first turn asks for
+the owner login until the owner has signed in through Settings → Providers (`owner-oauth`).
+
+The bridge reads `VISION_ACP_MCP_URL` from the instance's environment
 overrides and refuses to start when `VISION_ACP_BRIDGE=1` is already set, so a Vision-driven
 session can never spawn a second bridge. `VISION_ACP_MCP_URL` must use `https://` unless it
 points at a loopback host, and the bridge talks only to that origin.
@@ -95,7 +126,11 @@ are not Vision-specific (see the roadmap) must not import from `packages/vision-
    `~/.t3/vision-acp/`, override with `VISION_ACP_STATE_DIR`). The Streamable HTTP MCP
    transport maps Vision tool errors to client errors and retries once after refreshing the
    owner token. Tests run against fake OAuth and MCP servers on loopback ports.
-3. Register as a Local ACP command on the Windows host, end-to-end turn from the web UI.
+3. Register as a Local ACP command on the Windows host (done, headless): the `settings.json`
+   entry above, then `t3 project add` and `t3 thread start --provider vision --model vision
+   --wait` against a `dev-runner` server; the ACP registry driver spawns the bridge, completes
+   the handshake and returns its reply. Still open: the same turn from the web UI once a
+   browser is paired.
 4. Same on the macOS host.
 5. Ideas re-implemented (not copied) from other agent UIs: in-window editor pane, local
    dictation, usage/cost forecast, cross-thread notes. Each as its own package or behind a

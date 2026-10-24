@@ -1,0 +1,42 @@
+{
+  "name": "@t3tools/vision-notes",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./errors": {
+      "types": "./src/errors.ts",
+      "import": "./src/errors.ts"
+    },
+    "./migrations": {
+      "types": "./src/migrations.ts",
+      "import": "./src/migrations.ts"
+    },
+    "./repository": {
+      "types": "./src/repository.ts",
+      "import": "./src/repository.ts"
+    },
+    "./service": {
+      "types": "./src/service.ts",
+      "import": "./src/service.ts"
+    },
+    "./sqlite": {
+      "types": "./src/sqlite.ts",
+      "import": "./src/sqlite.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run --config ../../vite.config.ts --dir ."
+  },
+  "dependencies": {
+    "@t3tools/contracts": "workspace:*",
+    "@t3tools/shared": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

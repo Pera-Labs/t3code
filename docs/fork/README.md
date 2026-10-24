@@ -102,3 +102,10 @@ re-implemented from scratch when adopted; code from unlicensed projects is never
 
 Fixes meant for `pingdotgg/t3code` are prepared as marker-free branches; see
 `docs/fork/upstream-prs.md` for the list, the verification and the PR bodies.
+
+## Issues from an external tracker
+
+Upstream is adding an issue tracking layer with pluggable trackers (GitHub, Linear, later Jira).
+The fork does not build its own task system; it adds a Greater driver plus "start a session
+from an issue", issue to thread links and an agent-side MCP toolkit on top of that layer. Design
+and upstream dependencies: `docs/fork/issues-gr8r-driver.md`.

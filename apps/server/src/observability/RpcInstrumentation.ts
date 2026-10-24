@@ -212,6 +212,21 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeServerLifecycle]: "server",
   [WS_METHODS.subscribeAuthAccess]: "auth",
   [WS_METHODS.subscribeBackgroundPolicy]: "server",
+  // fork: notes
+  [WS_METHODS.notesListNotebooks]: "notes",
+  [WS_METHODS.notesGetNotebook]: "notes",
+  [WS_METHODS.notesCreateNotebook]: "notes",
+  [WS_METHODS.notesRenameNotebook]: "notes",
+  [WS_METHODS.notesDeleteNotebook]: "notes",
+  [WS_METHODS.notesDefaultNotebook]: "notes",
+  [WS_METHODS.notesNotebookForThread]: "notes",
+  [WS_METHODS.notesLinkThread]: "notes",
+  [WS_METHODS.notesUnlinkThread]: "notes",
+  [WS_METHODS.notesListNotes]: "notes",
+  [WS_METHODS.notesGetNote]: "notes",
+  [WS_METHODS.notesCreateNote]: "notes",
+  [WS_METHODS.notesUpdateNote]: "notes",
+  [WS_METHODS.notesDeleteNote]: "notes",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";

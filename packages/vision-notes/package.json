@@ -7,6 +7,10 @@
       "types": "./src/errors.ts",
       "import": "./src/errors.ts"
     },
+    "./layer": {
+      "types": "./src/layer.ts",
+      "import": "./src/layer.ts"
+    },
     "./migrations": {
       "types": "./src/migrations.ts",
       "import": "./src/migrations.ts"

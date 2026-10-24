@@ -76,3 +76,21 @@ export const NotePatch = Schema.Struct({
   pinned: Schema.optionalKey(Schema.Boolean),
 });
 export type NotePatch = typeof NotePatch.Type;
+
+export class NotebookNotFoundError extends Schema.TaggedError<NotebookNotFoundError>()(
+  "NotebookNotFoundError",
+  { notebookId: NotebookId },
+) {
+  override get message(): string {
+    return `notebook ${this.notebookId} not found`;
+  }
+}
+
+export class NoteNotFoundError extends Schema.TaggedError<NoteNotFoundError>()(
+  "NoteNotFoundError",
+  { noteId: NoteId },
+) {
+  override get message(): string {
+    return `note ${this.noteId} not found`;
+  }
+}

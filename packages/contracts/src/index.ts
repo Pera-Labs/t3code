@@ -67,3 +67,4 @@ export * from "./worktreeSetup.ts";
 export * from "./secretRequest.ts";
 export * from "./clientRpcPermissions.ts";
 export * from "./fork/notes.ts"; // fork: notes
+export * from "./fork/notesRpc.ts"; // fork: notes

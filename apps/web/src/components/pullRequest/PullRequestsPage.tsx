@@ -1457,6 +1457,7 @@ export function PullRequestsPage() {
             onAddPullRequest={() => undefined}
             onAddPullRequests={() => undefined}
             onAddDevice={() => undefined}
+            onAddNotes={() => undefined} // fork: notes
             browserAvailable={false}
             terminalAvailable={false}
             diffAvailable={false}
@@ -1464,6 +1465,7 @@ export function PullRequestsPage() {
             pullRequestAvailable={false}
             pullRequestsAvailable={false}
             deviceAvailable={false}
+            notesAvailable={false} // fork: notes
             pullRequestStatusSeeds={listedPullRequestTabStatuses}
           >
             <PullRequestDetailPanel

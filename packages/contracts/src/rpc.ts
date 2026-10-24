@@ -376,6 +376,24 @@ import {
 } from "./sourceControl.ts";
 import { VcsError } from "./vcs.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
+// fork: notes
+import {
+  NOTES_WS_METHODS,
+  WsNotesListNotebooksRpc,
+  WsNotesGetNotebookRpc,
+  WsNotesCreateNotebookRpc,
+  WsNotesRenameNotebookRpc,
+  WsNotesDeleteNotebookRpc,
+  WsNotesDefaultNotebookRpc,
+  WsNotesNotebookForThreadRpc,
+  WsNotesLinkThreadRpc,
+  WsNotesUnlinkThreadRpc,
+  WsNotesListNotesRpc,
+  WsNotesGetNoteRpc,
+  WsNotesCreateNoteRpc,
+  WsNotesUpdateNoteRpc,
+  WsNotesDeleteNoteRpc,
+} from "./fork/notesRpc.ts";
 
 export const WS_METHODS = {
   projectsList: "projects.list",
@@ -579,6 +597,7 @@ export const WS_METHODS = {
   subscribeAuthAccess: "subscribeAuthAccess",
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
+  ...NOTES_WS_METHODS, // fork: notes
 } as const;
 
 const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -2078,4 +2097,19 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeShellRpc,
   WsOrchestrationV2SubscribeThreadRpc,
   WsOrchestrationV2SubscribeCommandOutputRpc,
+  // fork: notes
+  WsNotesListNotebooksRpc,
+  WsNotesGetNotebookRpc,
+  WsNotesCreateNotebookRpc,
+  WsNotesRenameNotebookRpc,
+  WsNotesDeleteNotebookRpc,
+  WsNotesDefaultNotebookRpc,
+  WsNotesNotebookForThreadRpc,
+  WsNotesLinkThreadRpc,
+  WsNotesUnlinkThreadRpc,
+  WsNotesListNotesRpc,
+  WsNotesGetNoteRpc,
+  WsNotesCreateNoteRpc,
+  WsNotesUpdateNoteRpc,
+  WsNotesDeleteNoteRpc,
 ).middleware(RpcScopeAuthorization);

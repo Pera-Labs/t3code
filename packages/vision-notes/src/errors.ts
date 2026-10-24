@@ -1,7 +1,10 @@
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
 
-import { NotebookId, NoteId } from "@t3tools/contracts";
+import { NotebookNotFoundError, NoteNotFoundError } from "@t3tools/contracts";
+
+// The not-found errors live in contracts so the RPC layer can return them unchanged.
+export { NotebookNotFoundError, NoteNotFoundError };
 
 const summarizeIssue = (issue: SchemaIssue.Issue): string => {
   switch (issue._tag) {
@@ -40,24 +43,6 @@ export class NotesDecodeError extends Schema.TaggedError<NotesDecodeError>()("No
 
   override get message(): string {
     return `Decode error in ${this.operation}: ${this.issue}`;
-  }
-}
-
-export class NotebookNotFoundError extends Schema.TaggedError<NotebookNotFoundError>()(
-  "NotebookNotFoundError",
-  { notebookId: NotebookId },
-) {
-  override get message(): string {
-    return `notebook ${this.notebookId} not found`;
-  }
-}
-
-export class NoteNotFoundError extends Schema.TaggedError<NoteNotFoundError>()(
-  "NoteNotFoundError",
-  { noteId: NoteId },
-) {
-  override get message(): string {
-    return `note ${this.noteId} not found`;
   }
 }
 

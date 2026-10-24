@@ -54,6 +54,7 @@ import {
   OrchestrationSearchThreadsError,
   OrchestrationV2SearchThreadError,
   OrchestrationGetTurnDiffError,
+  NotesStorageError, // fork: notes
   ORCHESTRATION_V2_WS_METHODS,
   ORCHESTRATION_PROTOCOL_QUERY_PARAM,
   ORCHESTRATION_PROTOCOL_VERSION,
@@ -259,6 +260,8 @@ import {
 import * as AgentSessionScanner from "./project/AgentSessionScanner.ts";
 import * as AgentSessionImporter from "./project/AgentSessionImporter.ts";
 import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
+import * as NotesErrors from "@t3tools/vision-notes/errors"; // fork: notes
+import * as NotesService from "@t3tools/vision-notes/service"; // fork: notes
 
 const CONFIG_DISCOVERY_TIMEOUT = Duration.seconds(5);
 const isProviderUploadFeedbackError = Schema.is(ProviderUploadFeedbackError);
@@ -1215,6 +1218,14 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
   },
 );
 
+// fork: notes
+const notesStorageErrors = (operation: string) => ({
+  NotesSqlError: (cause: NotesErrors.NotesSqlError) =>
+    Effect.fail(new NotesStorageError({ operation, detail: cause.message })),
+  NotesDecodeError: (cause: NotesErrors.NotesDecodeError) =>
+    Effect.fail(new NotesStorageError({ operation, detail: cause.message })),
+});
+
 export const layerWsRpc = (
   currentSession: EnvironmentAuth.AuthenticatedSession,
   clientOrigin: OrchestrationClientOrigin,
@@ -1322,6 +1333,7 @@ export const layerWsRpc = (
       const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
       const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+      const notes = yield* NotesService.NotesService; // fork: notes
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
@@ -3173,6 +3185,59 @@ export const layerWsRpc = (
               Stream.concat(Stream.make(latest), changes),
             ),
           ),
+        // fork: notes
+        [WS_METHODS.notesListNotebooks]: (input) =>
+          notes
+            .listNotebooks(input.projectId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.listNotebooks"))),
+        [WS_METHODS.notesGetNotebook]: (input) =>
+          notes
+            .getNotebook(input.notebookId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.getNotebook"))),
+        [WS_METHODS.notesCreateNotebook]: (input) =>
+          notes
+            .createNotebook(input)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.createNotebook"))),
+        [WS_METHODS.notesRenameNotebook]: (input) =>
+          notes
+            .renameNotebook(input.notebookId, input.title)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.renameNotebook"))),
+        [WS_METHODS.notesDeleteNotebook]: (input) =>
+          notes
+            .deleteNotebook(input.notebookId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.deleteNotebook"))),
+        [WS_METHODS.notesDefaultNotebook]: (input) =>
+          notes
+            .defaultNotebook(input.projectId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.defaultNotebook"))),
+        [WS_METHODS.notesNotebookForThread]: (input) =>
+          notes
+            .notebookForThread(input.threadId, input.projectId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.notebookForThread"))),
+        [WS_METHODS.notesLinkThread]: (input) =>
+          notes
+            .linkThread(input.threadId, input.notebookId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.linkThread"))),
+        [WS_METHODS.notesUnlinkThread]: (input) =>
+          notes
+            .unlinkThread(input.threadId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.unlinkThread"))),
+        [WS_METHODS.notesListNotes]: (input) =>
+          notes
+            .listNotes(input.notebookId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.listNotes"))),
+        [WS_METHODS.notesGetNote]: (input) =>
+          notes.getNote(input.noteId).pipe(Effect.catchTags(notesStorageErrors("notes.getNote"))),
+        [WS_METHODS.notesCreateNote]: (input) =>
+          notes.createNote(input).pipe(Effect.catchTags(notesStorageErrors("notes.createNote"))),
+        [WS_METHODS.notesUpdateNote]: (input) =>
+          notes
+            .updateNote(input.noteId, input.patch)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.updateNote"))),
+        [WS_METHODS.notesDeleteNote]: (input) =>
+          notes
+            .deleteNote(input.noteId)
+            .pipe(Effect.catchTags(notesStorageErrors("notes.deleteNote"))),
       });
       const splitHandlers: Pick<typeof handlers, SplitWsRpc["_tag"]> = handlers;
       const otherHandlers: Pick<typeof handlers, Exclude<ServerWsRpc, SplitWsRpc>["_tag"]> =
@@ -3199,6 +3264,7 @@ export const layer = Layer.unwrap(
     const pullRequests = yield* PullRequestService.PullRequestService;
     const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
     const sql = yield* SqlClient.SqlClient;
+    const notes = yield* NotesService.NotesService; // fork: notes
     return HttpRouter.add(
       "GET",
       "/ws",
@@ -3276,6 +3342,7 @@ export const layer = Layer.unwrap(
               // their defects, not the rest of the server's.
               Layer.provide(DefectReporter.layer),
               Layer.provide(Layer.succeed(SqlClient.SqlClient, sql)),
+              Layer.provide(Layer.succeed(NotesService.NotesService, notes)), // fork: notes
               Layer.provide(AgentSessionScanner.layer),
               Layer.provide(ProviderMaintenanceRunner.layer),
               Layer.provide(Layer.succeed(ServerSelfUpdate.ServerSelfUpdate, serverSelfUpdate)),

@@ -208,6 +208,21 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.subscribeServerLifecycle]: AuthOrchestrationReadScope,
   [WS_METHODS.subscribeAuthAccess]: AuthAccessReadScope,
   [WS_METHODS.subscribeBackgroundPolicy]: AuthOrchestrationReadScope,
+  // fork: notes
+  [WS_METHODS.notesListNotebooks]: AuthOrchestrationReadScope,
+  [WS_METHODS.notesGetNotebook]: AuthOrchestrationReadScope,
+  [WS_METHODS.notesCreateNotebook]: AuthOrchestrationOperateScope,
+  [WS_METHODS.notesRenameNotebook]: AuthOrchestrationOperateScope,
+  [WS_METHODS.notesDeleteNotebook]: AuthOrchestrationOperateScope,
+  [WS_METHODS.notesDefaultNotebook]: AuthOrchestrationReadScope,
+  [WS_METHODS.notesNotebookForThread]: AuthOrchestrationReadScope,
+  [WS_METHODS.notesLinkThread]: AuthOrchestrationOperateScope,
+  [WS_METHODS.notesUnlinkThread]: AuthOrchestrationOperateScope,
+  [WS_METHODS.notesListNotes]: AuthOrchestrationReadScope,
+  [WS_METHODS.notesGetNote]: AuthOrchestrationReadScope,
+  [WS_METHODS.notesCreateNote]: AuthOrchestrationOperateScope,
+  [WS_METHODS.notesUpdateNote]: AuthOrchestrationOperateScope,
+  [WS_METHODS.notesDeleteNote]: AuthOrchestrationOperateScope,
 } as const satisfies Readonly<Record<WsRpcMethod, AuthEnvironmentScope>>;
 
 export function requiredScopeForRpcMethod(method: string): AuthEnvironmentScope {

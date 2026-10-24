@@ -63,7 +63,9 @@ workspace `vp` entry through `node` on Windows, because Node cannot spawn the `v
 without a shell (fork change in `scripts/check-changed.ts`). The server test suite also passes on
 Windows: the `ProviderTurnStartService` test harness takes the platform `Path` for the tests that
 touch the real filesystem, because the generic `Path.layer` is POSIX-only (fork change in the test
-file). Full runbook: [docs/operations/development.md](../operations/development.md).
+file). The server preview test launches the Playwright chromium headless shell; install it once per
+machine from `apps/server` with `pnpm exec playwright-core install chromium-headless-shell`.
+Full runbook: [docs/operations/development.md](../operations/development.md).
 
 ## Known fork limitations
 

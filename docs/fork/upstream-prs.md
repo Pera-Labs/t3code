@@ -24,13 +24,16 @@ gh pr create -R pingdotgg/t3code --base main --head Pera-Labs:pr/check-changed-w
   --title "chore(scripts): run vp through node in check:changed on Windows" --body-file body.md
 ```
 
-## Still failing on Windows at upstream/main 2c592a1086
+## Windows status at upstream/main 2c592a1086
 
-- `src/preview/ServerBrowserPage.test.ts`: needs the Playwright chromium headless shell
-  installed on the machine (`pnpm exec playwright install chromium`). Environment, not code.
+With the three fixes applied on top of `2c592a1086`, `vp run check:changed` passes all nine
+steps on Windows (unused patches, format, lint, knip, graphql, typecheck for 32 packages, test
+with 114 files in scope: 72 files run, 1274 passed, 3 skipped). No other code change was needed.
 
-In the full test step at `2c592a1086` with the check-changed fix, the only other failing files
-were the two fixed by the branches above. A run with all three applied has not been done yet.
+One environment requirement remains and is not a code issue: `src/preview/ServerBrowserPage.test.ts`
+launches the Playwright chromium headless shell, so install it once per machine from `apps/server`
+with `pnpm exec playwright-core install chromium-headless-shell` (about 270 MB under the
+Playwright browsers directory). Without it the test step fails with "Executable doesn't exist".
 
 ## Body for pr/check-changed-windows
 

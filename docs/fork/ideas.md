@@ -110,8 +110,14 @@ fork touch. Deferred until v1 is in use.
   compositions and tests are untouched and a runtime without a notes store keeps the plain
   text; `server.ts` provides the store to the orchestration runtime. A thread without its own
   notebook resolves to the project default notebook, so its pinned notes reach every thread
-  of the project. Storage failures and defects only log; the turn always starts. Pinned notes
-  are re-sent on every turn (v1 trade-off; "only when the pinned set changed" is a follow-up).
+  of the project. Storage failures and defects only log; the turn always starts.
+- 5d-1 follow-up. Done: a native session receives the full pinned set once, then a one-line
+  `<t3_notes ... unchanged="true">` marker (it points at `t3_note_list`) on every later turn
+  until a pinned note changes (full set again) or every note is unpinned (`cleared="true"`
+  once). The memory is per server process and per native thread id (`makePinnedNotesMemory`,
+  256 sessions), so a fresh native session, a server restart and a context handoff to a new
+  native thread all resend the full set; a turn counts as delivered only when it reaches
+  `startRootRun`. A two-turn test runs the marker through the real service.
 - 5d-1 follow-up. Done: the notes file lives in the server state directory next to
   `statev2.sqlite` (`<state>/fork-notes.sqlite`, `VISION_NOTES_DB_PATH` still overrides), so a dev
   server and the packaged one never share notes. Verified end to end on a running dev server:

@@ -797,6 +797,10 @@ function makeLocalCommandHarness(input: {
     newInstanceId,
     attemptId,
     projection: () => projection,
+    // fork: notes - a test that runs two turns through one service instance.
+    layer,
+    threadId,
+    runId,
     start: Effect.gen(function* () {
       yield* (yield* ProviderTurnStart.ProviderTurnStartServiceV2).start({ threadId, runId });
     }).pipe(Effect.provide(layer)),
@@ -1332,6 +1336,48 @@ effectIt.effect("starts the turn with the plain text when the notes store dies",
     expect(harness.startRootRun).toHaveBeenCalledOnce();
     expect(harness.startRootRun.mock.calls[0]?.[0].message.text).toBe("Continue");
   }),
+);
+
+// fork: notes - a native session that already holds the pinned set gets the one-line marker.
+effectIt.effect(
+  "sends the unchanged marker when the native session already holds the pinned notes",
+  () =>
+    Effect.gen(function* () {
+      const harness = makeLocalCommandHarness({
+        text: "Continue",
+        previousTurn: { runStatus: "failed", turnStatus: "running" },
+        notes: Layer.mock(NotesService.NotesService)({
+          notebookForThread: () => Effect.succeed(forkNotebook),
+          listNotes: () =>
+            Effect.succeed([
+              forkNote({
+                noteId: NoteId.make("note-pinned"),
+                title: "Deploy rules",
+                body: "ask before prod",
+              }),
+            ]),
+        }),
+      });
+      const initial = harness.projection();
+
+      yield* Effect.gen(function* () {
+        const service = yield* ProviderTurnStart.ProviderTurnStartServiceV2;
+        yield* service.start({ threadId: harness.threadId, runId: harness.runId });
+        harness.setProjection(initial);
+        yield* service.start({ threadId: harness.threadId, runId: harness.runId });
+      }).pipe(Effect.provide(harness.layer));
+
+      expect(harness.startRootRun).toHaveBeenCalledTimes(2);
+      const first = harness.startRootRun.mock.calls[0]?.[0].message.text ?? "";
+      const second = harness.startRootRun.mock.calls[1]?.[0].message.text ?? "";
+      expect(first).toContain("ask before prod");
+      expect(
+        second.startsWith(
+          'Continue\n\n<t3_notes version="1" notebook="Notes" notebookId="notebook-fork" unchanged="true">\n',
+        ),
+      ).toBe(true);
+      expect(second).not.toContain("ask before prod");
+    }),
 );
 
 // fork: notes - without a notes store in context the provider text stays plain.

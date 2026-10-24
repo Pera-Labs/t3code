@@ -98,34 +98,183 @@ export const renderPinnedNotesForProvider = (
 export const appendPinnedNotes = (text: string, envelope: string | null): string =>
   envelope === null ? text : text === "" ? envelope : `${text}\n\n${envelope}`;
 
+/**
+ * Which pinned set each native session has received, per server process. The key is the
+ * provider's native thread id; the value is the envelope last delivered, "" when nothing was
+ * pinned. A restart forgets everything, so the next turn of every session sends the full set.
+ */
+export interface PinnedNotesMemory {
+  readonly get: (nativeThreadId: string) => string | undefined;
+  readonly set: (nativeThreadId: string, envelope: string) => void;
+}
+
+export const DEFAULT_PINNED_NOTES_MEMORY_CAPACITY = 256;
+
+/** Bounded; the session served longest ago is forgotten once the capacity is passed. */
+export const makePinnedNotesMemory = (
+  capacity: number = DEFAULT_PINNED_NOTES_MEMORY_CAPACITY,
+): PinnedNotesMemory => {
+  const entries = new Map<string, string>();
+  return {
+    get: (nativeThreadId) => entries.get(nativeThreadId),
+    set: (nativeThreadId, envelope) => {
+      entries.delete(nativeThreadId);
+      entries.set(nativeThreadId, envelope);
+      if (entries.size > capacity) {
+        const oldest = entries.keys().next();
+        if (!oldest.done) {
+          entries.delete(oldest.value);
+        }
+      }
+    },
+  };
+};
+
+const renderNotebookMarker = (
+  notebook: Pick<Notebook, "notebookId" | "title">,
+  flag: "unchanged" | "cleared",
+  hint: string,
+): string =>
+  [
+    `<${PINNED_NOTES_TAG} version="${PINNED_NOTES_VERSION}" notebook="${escapePinnedNoteAttribute(notebook.title)}" notebookId="${escapePinnedNoteAttribute(notebook.notebookId)}" ${flag}="true">`,
+    hint,
+    `</${PINNED_NOTES_TAG}>`,
+  ].join("\n");
+
+/** One line for a session that already holds the current pinned set. */
+export const renderPinnedNotesUnchangedForProvider = (
+  notebook: Pick<Notebook, "notebookId" | "title">,
+): string =>
+  renderNotebookMarker(
+    notebook,
+    "unchanged",
+    "Pinned notes unchanged since they were last shown in this session; t3_note_list returns them again.",
+  );
+
+/** One line for a session whose pinned notes were all unpinned since it last saw them. */
+export const renderPinnedNotesClearedForProvider = (
+  notebook: Pick<Notebook, "notebookId" | "title">,
+): string =>
+  renderNotebookMarker(
+    notebook,
+    "cleared",
+    "No pinned notes remain in this notebook; earlier pinned notes no longer apply.",
+  );
+
+export interface PinnedNotesForSessionInput {
+  readonly notebook: Pick<Notebook, "notebookId" | "title">;
+  /** The full envelope for the current pinned set, null when nothing is pinned. */
+  readonly envelope: string | null;
+  /** The provider's native thread that receives the text; undefined when this turn starts it. */
+  readonly nativeThreadId: string | undefined;
+  readonly memory: PinnedNotesMemory;
+}
+
+export interface PinnedNotesForSession {
+  /** What follows the user text: the full envelope, a marker, or nothing. */
+  readonly envelope: string | null;
+  /** Records the delivery; run it once the text is handed to the provider. */
+  readonly delivered: () => void;
+}
+
+const noDelivery = (): void => undefined;
+
+/**
+ * The full envelope goes to a session that starts with this turn, that this process has not
+ * served yet, or whose pinned set changed since. A session that already holds the current set
+ * gets the one-line unchanged marker, and one whose notes were all unpinned gets the cleared
+ * marker once. A delivery counts only when `delivered` runs, so a turn that never reaches the
+ * provider repeats the full set next time.
+ */
+export const pinnedNotesForSession = (input: PinnedNotesForSessionInput): PinnedNotesForSession => {
+  const nativeThreadId = input.nativeThreadId;
+  if (nativeThreadId === undefined) {
+    return { envelope: input.envelope, delivered: noDelivery };
+  }
+  const current = input.envelope ?? "";
+  const delivered = () => input.memory.set(nativeThreadId, current);
+  const previous = input.memory.get(nativeThreadId);
+  if (previous === undefined) {
+    return { envelope: input.envelope, delivered };
+  }
+  if (previous === current) {
+    return {
+      envelope:
+        input.envelope === null ? null : renderPinnedNotesUnchangedForProvider(input.notebook),
+      delivered,
+    };
+  }
+  return {
+    envelope: input.envelope ?? renderPinnedNotesClearedForProvider(input.notebook),
+    delivered,
+  };
+};
+
 export interface ProviderTextWithPinnedNotesInput {
   readonly text: string;
   readonly threadId: ThreadId;
   readonly projectId: ProjectId;
 }
 
+export interface ProviderTurnTextWithPinnedNotesInput extends ProviderTextWithPinnedNotesInput {
+  /** The provider's native thread that receives the text; undefined when this turn starts it. */
+  readonly nativeThreadId: string | undefined;
+  readonly memory: PinnedNotesMemory;
+}
+
+export interface ProviderTurnTextWithPinnedNotes {
+  readonly text: string;
+  /** Run once the text is handed to the provider; see pinnedNotesForSession. */
+  readonly delivered: Effect.Effect<void>;
+}
+
 /**
- * The provider text for a turn: the user text plus the pinned notes of the thread's notebook.
- * A notes store that fails or dies is logged and skipped; the turn still starts with the text.
+ * The provider text for a turn: the user text plus the pinned notes of the thread's notebook,
+ * in full or as a marker depending on what the native session already holds. A notes store
+ * that fails or dies is logged and skipped; the turn still starts with the text.
  */
+export const providerTurnTextWithPinnedNotes = Effect.fn(
+  "VisionNotes.providerTurnTextWithPinnedNotes",
+)(function* (
+  input: ProviderTurnTextWithPinnedNotesInput,
+  limits: PinnedNotesLimits = DEFAULT_PINNED_NOTES_LIMITS,
+) {
+  const notes = yield* NotesService;
+  const forSession = yield* notes.notebookForThread(input.threadId, input.projectId).pipe(
+    Effect.flatMap((notebook) =>
+      Effect.map(notes.listNotes(notebook.notebookId), (all) =>
+        pinnedNotesForSession({
+          notebook,
+          envelope: renderPinnedNotesForProvider({ notebook, notes: all }, limits),
+          nativeThreadId: input.nativeThreadId,
+          memory: input.memory,
+        }),
+      ),
+    ),
+    Effect.tapError((error) => Effect.logWarning("pinned notes skipped for this turn", error)),
+    Effect.orElseSucceed(() => null),
+    Effect.catchDefect((defect) =>
+      Effect.logWarning("pinned notes skipped for this turn", defect).pipe(Effect.as(null)),
+    ),
+  );
+  return {
+    text: appendPinnedNotes(input.text, forSession?.envelope ?? null),
+    delivered: forSession === null ? Effect.void : Effect.sync(forSession.delivered),
+  };
+});
+
+const noSessionMemory = makePinnedNotesMemory();
+
+/** The provider text with the full pinned set, for a caller without a native session to track. */
 export const providerTextWithPinnedNotes = Effect.fn("VisionNotes.providerTextWithPinnedNotes")(
   function* (
     input: ProviderTextWithPinnedNotesInput,
     limits: PinnedNotesLimits = DEFAULT_PINNED_NOTES_LIMITS,
   ) {
-    const notes = yield* NotesService;
-    const envelope = yield* notes.notebookForThread(input.threadId, input.projectId).pipe(
-      Effect.flatMap((notebook) =>
-        Effect.map(notes.listNotes(notebook.notebookId), (all) =>
-          renderPinnedNotesForProvider({ notebook, notes: all }, limits),
-        ),
-      ),
-      Effect.tapError((error) => Effect.logWarning("pinned notes skipped for this turn", error)),
-      Effect.orElseSucceed(() => null),
-      Effect.catchDefect((defect) =>
-        Effect.logWarning("pinned notes skipped for this turn", defect).pipe(Effect.as(null)),
-      ),
+    const turn = yield* providerTurnTextWithPinnedNotes(
+      { ...input, nativeThreadId: undefined, memory: noSessionMemory },
+      limits,
     );
-    return appendPinnedNotes(input.text, envelope);
+    return turn.text;
   },
 );

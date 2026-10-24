@@ -176,3 +176,149 @@ describe("providerTextWithPinnedNotes", () => {
     }),
   );
 });
+
+describe("pinnedNotesForSession", () => {
+  const envelope = ProviderContext.renderPinnedNotesForProvider({
+    notebook,
+    notes: [note({ noteId: NoteId.make("n1"), title: "Rules", body: "ask first" })],
+  });
+  const changed = ProviderContext.renderPinnedNotesForProvider({
+    notebook,
+    notes: [note({ noteId: NoteId.make("n1"), title: "Rules", body: "ask first, always" })],
+  });
+  const unchangedMarker = ProviderContext.renderPinnedNotesUnchangedForProvider(notebook);
+  const clearedMarker = ProviderContext.renderPinnedNotesClearedForProvider(notebook);
+
+  it("sends the full set to a session that starts with this turn and remembers nothing", () => {
+    const memory = ProviderContext.makePinnedNotesMemory();
+    const first = ProviderContext.pinnedNotesForSession({
+      notebook,
+      envelope,
+      nativeThreadId: undefined,
+      memory,
+    });
+    assert.strictEqual(first.envelope, envelope);
+    first.delivered();
+    const again = ProviderContext.pinnedNotesForSession({
+      notebook,
+      envelope,
+      nativeThreadId: undefined,
+      memory,
+    });
+    assert.strictEqual(again.envelope, envelope);
+  });
+
+  it("sends the full set once per native session, then the unchanged marker", () => {
+    const memory = ProviderContext.makePinnedNotesMemory();
+    const turn = (current: string | null) =>
+      ProviderContext.pinnedNotesForSession({
+        notebook,
+        envelope: current,
+        nativeThreadId: "native-1",
+        memory,
+      });
+    const first = turn(envelope);
+    assert.strictEqual(first.envelope, envelope);
+    // Not delivered yet: a turn that never reached the provider repeats the full set.
+    assert.strictEqual(turn(envelope).envelope, envelope);
+    first.delivered();
+    const second = turn(envelope);
+    assert.strictEqual(second.envelope, unchangedMarker);
+    assert.include(unchangedMarker, 'unchanged="true"');
+    assert.include(unchangedMarker, `notebookId="${notebook.notebookId}"`);
+    assert.include(unchangedMarker, "t3_note_list");
+    second.delivered();
+    // A changed pinned set goes out in full again.
+    const third = turn(changed);
+    assert.strictEqual(third.envelope, changed);
+    third.delivered();
+    assert.strictEqual(turn(changed).envelope, unchangedMarker);
+    // Another session has not seen anything yet.
+    assert.strictEqual(
+      ProviderContext.pinnedNotesForSession({
+        notebook,
+        envelope: changed,
+        nativeThreadId: "native-2",
+        memory,
+      }).envelope,
+      changed,
+    );
+  });
+
+  it("sends the cleared marker once when every note was unpinned, then nothing", () => {
+    const memory = ProviderContext.makePinnedNotesMemory();
+    const turn = (current: string | null) =>
+      ProviderContext.pinnedNotesForSession({
+        notebook,
+        envelope: current,
+        nativeThreadId: "native-1",
+        memory,
+      });
+    // Nothing pinned from the start: nothing is sent and nothing is marked.
+    const empty = turn(null);
+    assert.isNull(empty.envelope);
+    empty.delivered();
+    assert.isNull(turn(null).envelope);
+    const pinned = turn(envelope);
+    assert.strictEqual(pinned.envelope, envelope);
+    pinned.delivered();
+    const cleared = turn(null);
+    assert.strictEqual(cleared.envelope, clearedMarker);
+    assert.include(clearedMarker, 'cleared="true"');
+    cleared.delivered();
+    assert.isNull(turn(null).envelope);
+  });
+
+  it("forgets the session served longest ago past its capacity", () => {
+    const memory = ProviderContext.makePinnedNotesMemory(2);
+    memory.set("a", "1");
+    memory.set("b", "2");
+    memory.set("a", "3");
+    memory.set("c", "4");
+    assert.strictEqual(memory.get("b"), undefined);
+    assert.strictEqual(memory.get("a"), "3");
+    assert.strictEqual(memory.get("c"), "4");
+  });
+});
+
+describe("providerTurnTextWithPinnedNotes", () => {
+  it.effect("tracks the native session and records the delivery only when asked", () =>
+    Effect.gen(function* () {
+      const service = yield* NotesService;
+      const threadId = ThreadId.make("thread-turn-memory");
+      const projectId = ProjectId.make("project-turn-memory");
+      const nb = yield* service.notebookForThread(threadId, projectId);
+      yield* service.createNote({
+        notebookId: nb.notebookId,
+        title: "Deploy rules",
+        body: "ask before prod",
+        author: { _tag: "user" },
+        pinned: true,
+      });
+      const memory = ProviderContext.makePinnedNotesMemory();
+      const input = { text: "Continue", threadId, projectId, nativeThreadId: "native-1", memory };
+      const first = yield* ProviderContext.providerTurnTextWithPinnedNotes(input);
+      assert.include(first.text, "ask before prod");
+      const repeated = yield* ProviderContext.providerTurnTextWithPinnedNotes(input);
+      assert.include(repeated.text, "ask before prod");
+      yield* first.delivered;
+      const second = yield* ProviderContext.providerTurnTextWithPinnedNotes(input);
+      assert.isTrue(second.text.startsWith('Continue\n\n<t3_notes version="1" '));
+      assert.include(second.text, 'unchanged="true"');
+      assert.notInclude(second.text, "ask before prod");
+      // A failing store leaves the text plain and the memory untouched.
+      const failing = Layer.mock(NotesService)({
+        notebookForThread: () => Effect.fail(new NotesSqlError({ operation: "notebookForThread" })),
+      });
+      const skipped = yield* ProviderContext.providerTurnTextWithPinnedNotes(input).pipe(
+        Effect.provide(failing),
+      );
+      assert.strictEqual(skipped.text, "Continue");
+      yield* skipped.delivered;
+      assert.include(
+        (yield* ProviderContext.providerTurnTextWithPinnedNotes(input)).text,
+        'unchanged="true"',
+      );
+    }).pipe(Effect.provide(LiveLayer)),
+  );
+});

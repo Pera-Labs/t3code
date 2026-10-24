@@ -135,6 +135,9 @@ export const layer: Layer.Layer<
     // fork: notes - optional, so upstream layer compositions and tests stay untouched.
     // The server provides the notes store; a turn without one keeps the plain text.
     const notes = yield* Effect.serviceOption(NotesService.NotesService);
+    // fork: notes - which pinned set each native session has received; a session that holds
+    // the current set gets a one-line marker instead of the notes (pinnedNotesForSession).
+    const pinnedNotesMemory = VisionNotesContext.makePinnedNotesMemory();
     const isManagedWorktreePath = yield* makeIsManagedWorktreePath;
 
     // These callbacks outlive startup while a run drains background work. Build
@@ -1028,14 +1031,18 @@ export const layer: Layer.Layer<
         text: message.text,
         records: message.context?.records ?? [],
       });
-      // fork: notes - the pinned notes of the thread's notebook follow the user text.
-      const userText = Option.isSome(notes)
-        ? yield* VisionNotesContext.providerTextWithPinnedNotes({
+      // fork: notes - the pinned notes of the thread's notebook follow the user text, in full
+      // or as a marker depending on what the native session already holds.
+      const pinnedNotes = Option.isSome(notes)
+        ? yield* VisionNotesContext.providerTurnTextWithPinnedNotes({
             text: composerUserText,
             threadId: projection.thread.id,
             projectId: projection.thread.projectId,
+            nativeThreadId: runningProviderThread.nativeThreadRef?.nativeId ?? undefined,
+            memory: pinnedNotesMemory,
           }).pipe(Effect.provideService(NotesService.NotesService, notes.value))
-        : composerUserText;
+        : { text: composerUserText, delivered: Effect.void };
+      const userText = pinnedNotes.text;
       // Delivered once: this run's provider turn marks the work as told. A
       // restart continuation is prompted by its own text or resumes natively.
       const noteContinuation = isRestartNoteContinuation(
@@ -1299,6 +1306,8 @@ export const layer: Layer.Layer<
         !noteContinuation
           ? session
           : makeDeliverySession(session, startWithHandoffs);
+      // fork: notes - from here on the text is handed to the provider.
+      yield* pinnedNotes.delivered;
       return runExecution.startRootRun({
         commandId: CommandId.make(`command:effect:provider-turn.start:${run.id}`),
         appThread: projection.thread,

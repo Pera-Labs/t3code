@@ -93,8 +93,14 @@ fork touch. Deferred until v1 is in use.
   right-panel surface (`apps/web/src/components/fork/notes/`, state in
   `apps/web/src/state/fork/notes.ts`): notebook picker, create, link to thread, add, edit, pin,
   delete. Storage failures surface as `NotesStorageError` on the wire.
-- 5c. MCP toolkit and handlers with tests. Headless check: an agent in a thread writes a note
-  and the panel shows it.
+- 5c. Done (`1568f33de9`): MCP toolkit `apps/server/src/mcp/toolkits/notes/` registered in
+  `McpHttpServer.ts` with fork markers. Tools `t3_notebook_list`, `t3_note_list` (pinned first,
+  cursor/limit, 200-char preview), `t3_note_read`, `t3_note_write` (create or update; a thread
+  is the author of what it writes). No capability needed; a thread stays in its own project, a
+  client that is not a thread passes `projectId`, a read-only client cannot write. The test
+  runs the production registration over the in-memory layer: a note written from a thread
+  lands in the thread's notebook, which is the notebook the panel lists through `notes.*`.
+  The browser check of the panel itself still waits for pairing on a real server.
 - 5d. Optional: Vision mirror and context injection.
 
 ### Out of scope

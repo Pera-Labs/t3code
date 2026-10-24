@@ -101,7 +101,18 @@ fork touch. Deferred until v1 is in use.
   runs the production registration over the in-memory layer: a note written from a thread
   lands in the thread's notebook, which is the notebook the panel lists through `notes.*`.
   The browser check of the panel itself still waits for pairing on a real server.
-- 5d. Optional: Vision mirror and context injection.
+- 5d-1. Done (`a14eeb3ec7`): context injection. At turn start the pinned notes of the thread's
+  notebook follow the user text in a `<t3_notes version="1" notebook notebookId [omitted]>`
+  envelope with one `<note id title updatedAt>` per note (`packages/vision-notes/src/provider-context.ts`,
+  wired in `ProviderTurnStartService.ts` with fork markers). Caps: 8 notes, 2000 chars per
+  note, 8000 chars in total; the omitted count is in the envelope. Nested t3 markup in a body
+  is escaped. The service reads `NotesService` through `serviceOption`, so upstream layer
+  compositions and tests are untouched and a runtime without a notes store keeps the plain
+  text; `server.ts` provides the store to the orchestration runtime. A thread without its own
+  notebook resolves to the project default notebook, so its pinned notes reach every thread
+  of the project. Storage failures and defects only log; the turn always starts. Pinned notes
+  are re-sent on every turn (v1 trade-off; "only when the pinned set changed" is a follow-up).
+- 5d-2. Optional: Vision mirror and a `note` composer context kind.
 
 ### Out of scope
 
